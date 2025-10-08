@@ -334,8 +334,12 @@ void update_game_state()
     } 
     else if (ball.pos_x <= 7 + 3) 
     { // Bottom (lose)
-        currentState = Lost;
-        return;
+        //changed for tests!!!
+        ball.vx = 1;
+
+
+        //currentState = Lost;
+        //return;
     }
 
     // TODO: Update balls position and direction
@@ -373,12 +377,26 @@ void update_game_state()
     PixelSide pixel_side;
 
     int colliding_pixel_x;
+    int colliding_pixel_y;
 
     // leftmost pixel
     int leftmost_ball_x = ball.pos_x - 3;
     if(leftmost_ball_x <= 8)
     {
         check_bar_collision();
+    }
+
+    pixel_side = Left;
+
+    leftmost_ball_x = ball.pos_x - 3;
+    colliding_pixel_x = leftmost_ball_x - 1;
+
+    int pixel_offset;
+    pixel_offset = colliding_pixel_x + 1 - PLAYING_FIELD_LEFT_X; // how far left is a pixel from playing field beginning
+
+    if (pixel_offset % TILE_SIZE == 0) //colision on the right is possible
+    {
+        check_block(colliding_pixel_x, ball.pos_y, pixel_side); // check block that contains colliding pixel
     }
 
 
@@ -388,12 +406,35 @@ void update_game_state()
     int rightmost_ball_x = ball.pos_x + 3;
     colliding_pixel_x = rightmost_ball_x + 1;
 
-    int pixel_offset;
     pixel_offset = colliding_pixel_x - PLAYING_FIELD_LEFT_X; // how far right is a pixel from playing field beginning
 
     if (pixel_offset % TILE_SIZE == 0) //colision on the right is possible
     {
         check_block(colliding_pixel_x, ball.pos_y, pixel_side); // check block that contains colliding pixel
+    }
+
+
+    // bottommost pixel
+    pixel_side = Bottom;
+
+    int bottommost_ball_y = ball.pos_y + 3;
+    colliding_pixel_y = bottommost_ball_y + 1;
+
+    if (colliding_pixel_y % TILE_SIZE == 0) //colision on the bottom is possible
+    {
+        check_block(ball.pos_x, colliding_pixel_y, pixel_side); // check block that contains colliding pixel
+    }
+
+
+    // topmost pixel
+    pixel_side = Top;
+
+    int topmost_ball_y = ball.pos_y - 3;
+    colliding_pixel_y = topmost_ball_y - 1;
+
+    if ((colliding_pixel_y + 1) % TILE_SIZE == 0) //colision on the top is possible
+    {
+        check_block(ball.pos_x, colliding_pixel_y, pixel_side); // check block that contains colliding pixel
     }
     
     
