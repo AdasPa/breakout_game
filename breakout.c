@@ -33,9 +33,9 @@ unsigned char tiles[NROWS][NCOLS] __attribute__((used)) = { 0 }; // DON'T TOUCH 
 #define BAR_SPEED_MULTIPLIER 3
 
 //TODOOOOOOO:
-// continue collision detection
+// continue block detection
 
-
+char *here = "here";
 int frame_counter = 0;
 const unsigned int PLAYING_FIELD_LEFT_X = VGA_WIDTH - NCOLS * TILE_SIZE;
 
@@ -78,6 +78,13 @@ typedef struct _bar
 } Bar;
 Bar bar;
 
+typedef enum _pixelSide
+{
+    Right = 0,
+    Bottom = 1,
+    Top = 2,
+    Left = 3,
+} PixelSide;
 
 /***
  * Here follow the C declarations for our assembly functions
@@ -159,6 +166,11 @@ void draw_block(unsigned int x, unsigned int y, unsigned int width, unsigned int
             SetPixel(i, j, color);
         }
     }
+}
+
+void clear_block(unsigned int x, unsigned int y, unsigned int width, unsigned int height)
+{
+    draw_block(x, y, width, height, white);
 }
 
 void draw_bar(unsigned int y)
@@ -272,6 +284,44 @@ void check_bar_collision()
     }
 }
 
+void check_block(unsigned int x, unsigned int y, PixelSide pixel_side) 
+{
+    // pixel_side is from ball perspective -> right means right pixel of ball hit left side of block
+    // Calculate column and row from x, y (playing field starts at x=170, y=0)
+    int col = (x - PLAYING_FIELD_LEFT_X) / TILE_SIZE;
+    int row = y / TILE_SIZE;
+
+    // Check if point is within playing field and block is active
+    if (col >= 0 && col < NCOLS && row >= 0 && row < NROWS && tiles[row][col] != 0) 
+    {
+        tiles[row][col] = 0; // Destroy block
+        write(here);
+        // Calculate block boundaries
+        unsigned int block_x = PLAYING_FIELD_LEFT_X + col * TILE_SIZE; // x=170 to 305
+        unsigned int block_y = row * TILE_SIZE;                       // y=0 to 225
+
+        clear_block(block_x, block_y, TILE_SIZE, TILE_SIZE);
+
+        // Determine hit side and bounce (prioritize x for horizontal gameplay)
+        if (pixel_side == Right) 
+        {
+            ball.vx = -1; // Hit by right side, bounce left
+        } 
+        else if (pixel_side == Bottom) 
+        {
+            ball.vy = 1; // Hit by bottom side, bounce up
+        } 
+        else if (pixel_side == Left) 
+        {
+            ball.vx = 1; // Hit by left side, bounce right
+        } 
+        else if (pixel_side == Bottom) 
+        {
+            ball.vy = -1; // Hit by top side, bounce down
+        }
+    }
+}
+
 void update_game_state()
 {
     // TODO: Check: game won? game lost?
@@ -311,11 +361,6 @@ void update_game_state()
         ball.vy = 1;
     }
 
-    if (ball.pos_x >= PLAYING_FIELD_LEFT_X)
-    {
-        ball.vx = -1;
-    }
-
 
     // TODO: Hit Check with Blocks
     // HINT: try to only do this check when we potentially have a hit, as it is relatively expensive and can slow down game play a lot
@@ -325,12 +370,32 @@ void update_game_state()
         return;
     }
 
+    PixelSide pixel_side;
+
+    int colliding_pixel_x;
+
     // leftmost pixel
     int leftmost_ball_x = ball.pos_x - 3;
     if(leftmost_ball_x <= 8)
     {
         check_bar_collision();
     }
+
+
+    // rightmost pixel
+    pixel_side = Right;
+
+    int rightmost_ball_x = ball.pos_x + 3;
+    colliding_pixel_x = rightmost_ball_x + 1;
+
+    int pixel_offset;
+    pixel_offset = colliding_pixel_x - PLAYING_FIELD_LEFT_X; // how far right is a pixel from playing field beginning
+
+    if (pixel_offset % TILE_SIZE == 0) //colision on the right is possible
+    {
+        check_block(colliding_pixel_x, ball.pos_y, pixel_side); // check block that contains colliding pixel
+    }
+    
     
 
 }
