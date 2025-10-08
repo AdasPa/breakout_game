@@ -30,13 +30,14 @@ unsigned char tiles[NROWS][NCOLS] __attribute__((used)) = { 0 }; // DON'T TOUCH 
 #define VGA_WIDTH 320
 #define VGA_HEIGHT 240
 #define FRAME_SKIP 1024
+#define BAR_SPEED_MULTIPLIER 3
 
 //TODOOOOOOO:
-// continue colision detection
-// fix restart, to Clear Screen inside
+// continue collision detection
+
 
 int frame_counter = 0;
-const unsigned int PLAYING_FIELD_TOP_LEFT_X = VGA_WIDTH - NCOLS * TILE_SIZE;
+const unsigned int PLAYING_FIELD_LEFT_X = VGA_WIDTH - NCOLS * TILE_SIZE;
 
 /***
  * You might use and modify the struct/enum definitions below this comment
@@ -239,6 +240,38 @@ void draw_playing_field()
     }
 }
 
+void check_bar_collision()
+{
+    // this function checks if there is a collision between ball and bar
+    // if there is - it updates ball's velocities
+
+    // should only be called when ball.pos_x <= 8
+
+    if ( ball.pos_x - 3 > 8 ) // if not near the bar
+        return;
+    
+    if (ball.pos_y >= bar.pos_y && ball.pos_y < bar.pos_y + 15) // collision with top part of bar
+    {
+        ball.vx = 1;
+        ball.vy = -1;
+        return;
+    }
+
+    if (ball.pos_y >= bar.pos_y + 15 && ball.pos_y < bar.pos_y + 30) // collision with mid part of bar
+    {
+        ball.vx = 1;
+        ball.vy = 0;
+        return;
+    }
+
+    if (ball.pos_y >= bar.pos_y + 30 && ball.pos_y < bar.pos_y + 45) // collision with bottom part of bar
+    {
+        ball.vx = 1;
+        ball.vy = 1;
+        return;
+    }
+}
+
 void update_game_state()
 {
     // TODO: Check: game won? game lost?
@@ -278,17 +311,26 @@ void update_game_state()
         ball.vy = 1;
     }
 
+    if (ball.pos_x >= PLAYING_FIELD_LEFT_X)
+    {
+        ball.vx = -1;
+    }
+
 
     // TODO: Hit Check with Blocks
     // HINT: try to only do this check when we potentially have a hit, as it is relatively expensive and can slow down game play a lot
 
-    if(!has_ball_position_changed) //if ball hasn't move we don't check any colisions
+    if(!has_ball_position_changed) //if ball hasn't move we don't check any collisions
     {
         return;
     }
 
     // leftmost pixel
     int leftmost_ball_x = ball.pos_x - 3;
+    if(leftmost_ball_x <= 8)
+    {
+        check_bar_collision();
+    }
     
 
 }
@@ -307,8 +349,8 @@ void update_bar_state()
         if (!(out & 0x8000)) break; // Not valid
         remaining = (out & 0xFF0000) >> 16; // WSPACE
         char c = out & 0xFF;
-        if (c == 0x77 && bar.pos_y > 0) bar.pos_y--; // 'w': up
-        else if (c == 0x73 && bar.pos_y < VGA_HEIGHT - 45) bar.pos_y++; // 's': down
+        if (c == 0x77 && bar.pos_y > BAR_SPEED_MULTIPLIER - 1) bar.pos_y -= BAR_SPEED_MULTIPLIER; // 'w': up, BAR_SPEED_MULTIPLIER -> how many pixels will bar move
+        else if (c == 0x73 && bar.pos_y < VGA_HEIGHT - 45 - (BAR_SPEED_MULTIPLIER - 1)) bar.pos_y += BAR_SPEED_MULTIPLIER; // 's': down
     } while (remaining > 0);
 }
 
@@ -378,7 +420,7 @@ void reset()
 {
     // Hint: This is draining the UART buffer
 
-
+    
 
     ball.pos_x = 20;    // Starting x
     ball.pos_y = 120;   // Starting y (middle)
@@ -396,6 +438,11 @@ void reset()
             tiles[row][col] = 1; // All blocks active
         }
     }
+
+    ClearScreen();
+    draw_ball();
+    draw_bar(bar.pos_y);
+    draw_playing_field();
 
 
     int remaining = 0;
@@ -432,10 +479,8 @@ void wait_for_start()
 int main(int argc, char *argv[])
 {
     reset();
-    ClearScreen();
-    draw_ball();
-    draw_bar(bar.pos_y);
-    draw_playing_field();
+    
+    
     
 
     // HINT: This loop allows the user to restart the game after loosing/winning the previous game
