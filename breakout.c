@@ -30,12 +30,12 @@ unsigned char tiles[NROWS][NCOLS] __attribute__((used)) = { 0 }; // DON'T TOUCH 
 #define VGA_WIDTH 320
 #define VGA_HEIGHT 240
 #define FRAME_SKIP 1024
-#define BAR_SPEED_MULTIPLIER 3
+#define BAR_SPEED_MULTIPLIER 15
 
 //TODOOOOOOO:
 // continue block detection
 
-char *here = "here";
+char *wrong_cols_number = "Number of columns must be between 1 and 18."; 
 int frame_counter = 0;
 const unsigned int PLAYING_FIELD_LEFT_X = VGA_WIDTH - NCOLS * TILE_SIZE;
 
@@ -295,7 +295,6 @@ void check_block(unsigned int x, unsigned int y, PixelSide pixel_side)
     if (col >= 0 && col < NCOLS && row >= 0 && row < NROWS && tiles[row][col] != 0) 
     {
         tiles[row][col] = 0; // Destroy block
-        write(here);
         // Calculate block boundaries
         unsigned int block_x = PLAYING_FIELD_LEFT_X + col * TILE_SIZE; // x=170 to 305
         unsigned int block_y = row * TILE_SIZE;                       // y=0 to 225
@@ -309,7 +308,7 @@ void check_block(unsigned int x, unsigned int y, PixelSide pixel_side)
         } 
         else if (pixel_side == Bottom) 
         {
-            ball.vy = 1; // Hit by bottom side, bounce up
+            ball.vy = -1; // Hit by bottom side, bounce up
         } 
         else if (pixel_side == Left) 
         {
@@ -317,7 +316,7 @@ void check_block(unsigned int x, unsigned int y, PixelSide pixel_side)
         } 
         else if (pixel_side == Bottom) 
         {
-            ball.vy = -1; // Hit by top side, bounce down
+            ball.vy = 1; // Hit by top side, bounce down
         }
     }
 }
@@ -333,13 +332,15 @@ void update_game_state()
         return;
     } 
     else if (ball.pos_x <= 7 + 3) 
-    { // Bottom (lose)
-        //changed for tests!!!
-        ball.vx = 1;
+    {
+        //ball.vx = 1;
+
+        //For testing you can comment lines below and uncomment one above
+        //It makes you to bounce instead of losing
 
 
-        //currentState = Lost;
-        //return;
+        currentState = Lost;
+        return;
     }
 
     // TODO: Update balls position and direction
@@ -391,13 +392,18 @@ void update_game_state()
     leftmost_ball_x = ball.pos_x - 3;
     colliding_pixel_x = leftmost_ball_x - 1;
 
+    //
+    // IFs commented below cause a bug -> no collision detected when block is hit by a corner
+    // Nevertheless they make the checking process approx. 30 times faster which is kind of cool
+    //
+
     int pixel_offset;
     pixel_offset = colliding_pixel_x + 1 - PLAYING_FIELD_LEFT_X; // how far left is a pixel from playing field beginning
 
-    if (pixel_offset % TILE_SIZE == 0) //colision on the right is possible
-    {
+    //if (pixel_offset % TILE_SIZE == 0) //colision on the right is possible
+    //{
         check_block(colliding_pixel_x, ball.pos_y, pixel_side); // check block that contains colliding pixel
-    }
+    //}
 
 
     // rightmost pixel
@@ -408,10 +414,10 @@ void update_game_state()
 
     pixel_offset = colliding_pixel_x - PLAYING_FIELD_LEFT_X; // how far right is a pixel from playing field beginning
 
-    if (pixel_offset % TILE_SIZE == 0) //colision on the right is possible
-    {
+    //if (pixel_offset % TILE_SIZE == 0) //colision on the right is possible
+    //{
         check_block(colliding_pixel_x, ball.pos_y, pixel_side); // check block that contains colliding pixel
-    }
+    //}
 
 
     // bottommost pixel
@@ -420,10 +426,10 @@ void update_game_state()
     int bottommost_ball_y = ball.pos_y + 3;
     colliding_pixel_y = bottommost_ball_y + 1;
 
-    if (colliding_pixel_y % TILE_SIZE == 0) //colision on the bottom is possible
-    {
+    //if (colliding_pixel_y % TILE_SIZE == 0) //colision on the bottom is possible
+    //{
         check_block(ball.pos_x, colliding_pixel_y, pixel_side); // check block that contains colliding pixel
-    }
+    //}
 
 
     // topmost pixel
@@ -432,10 +438,10 @@ void update_game_state()
     int topmost_ball_y = ball.pos_y - 3;
     colliding_pixel_y = topmost_ball_y - 1;
 
-    if ((colliding_pixel_y + 1) % TILE_SIZE == 0) //colision on the top is possible
-    {
+    //if ((colliding_pixel_y + 1) % TILE_SIZE == 0) //colision on the top is possible
+    //{
         check_block(ball.pos_x, colliding_pixel_y, pixel_side); // check block that contains colliding pixel
-    }
+    //}
     
     
 
@@ -457,6 +463,7 @@ void update_bar_state()
         char c = out & 0xFF;
         if (c == 0x77 && bar.pos_y > BAR_SPEED_MULTIPLIER - 1) bar.pos_y -= BAR_SPEED_MULTIPLIER; // 'w': up, BAR_SPEED_MULTIPLIER -> how many pixels will bar move
         else if (c == 0x73 && bar.pos_y < VGA_HEIGHT - 45 - (BAR_SPEED_MULTIPLIER - 1)) bar.pos_y += BAR_SPEED_MULTIPLIER; // 's': down
+        else if (c == 0x0A) currentState = Exit; // Enter: set state to Exit, exit game
     } while (remaining > 0);
 }
 
@@ -525,7 +532,7 @@ void play()
 void reset()
 {
     // Hint: This is draining the UART buffer
-
+    
     
 
     ball.pos_x = 20;    // Starting x
@@ -578,17 +585,25 @@ void wait_for_start()
                 currentState = Running;
                 break;
             }
+            else if (c == 0x0A) 
+            {
+                currentState = Exit; // Enter: set state to Exit, exit game
+                break;
+            }
         }
     }
 }
 
 int main(int argc, char *argv[])
 {
+    if (NCOLS > 18 || NCOLS < 0)
+    {
+        write(wrong_cols_number);
+        return 0;
+    }
+
     reset();
     
-    
-    
-
     // HINT: This loop allows the user to restart the game after loosing/winning the previous game
     while (1)
     {
