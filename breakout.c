@@ -10,8 +10,9 @@ unsigned int __attribute__((used)) black = 0x0;
 
 // Don't change the name of this variables
 #define NCOLS 10 // <- Supported value range: [1,18]
-#define NROWS 14 // <- This variable might change.
+#define NROWS 16 // <- This variable might change.
 #define TILE_SIZE 15 // <- Tile size, might change.
+
 
 char *won = "You Won";       // DON'T TOUCH THIS - keep the string as is
 char *lost = "You Lost";     // DON'T TOUCH THIS - keep the string as is
@@ -24,6 +25,10 @@ unsigned char tiles[NROWS][NCOLS] __attribute__((used)) = { 0 }; // DON'T TOUCH 
 /***
  * TODO: Define your variables below this comment
  */
+
+ 
+#define VGA_WIDTH 320
+#define VGA_HEIGHT 240
 
 /***
  * You might use and modify the struct/enum definitions below this comment
@@ -46,6 +51,24 @@ typedef enum _gameState
     Exit = 4,
 } GameState;
 GameState currentState = Stopped;
+
+typedef struct _ball
+{
+    unsigned int pos_x;  // X-coordinate of ball center (0 to 319)
+    unsigned int pos_y;  // Y-coordinate of ball center (0 to 239)
+    int vx;              // X velocity (e.g., -1, 0, 1)
+    int vy;              // Y velocity (e.g., -1, 0, 1)
+    unsigned int color;
+} Ball;
+Ball ball;
+
+typedef struct _bar
+{
+    unsigned int pos_y;  // Y-coordinate of bar top (0 to 239)
+    int vy;              // Y velocity (e.g., -1, 0, 1)
+} Bar;
+Bar bar;
+
 
 /***
  * Here follow the C declarations for our assembly functions
@@ -104,26 +127,69 @@ asm("ReadUart:\n\t"
 // Don't modify any function header
 void draw_block(unsigned int x, unsigned int y, unsigned int width, unsigned int height, unsigned int color)
 {
-
-}
-
-void draw_bar(unsigned int y)
-{
-}
-
-void draw_ball()
-{
-        for(int i = 0; i<height; i++)
+    for(int i = x; i <= x + width; i++)
     {
-        for(int j = 0; j<width; j++)
+        if (i > VGA_WIDTH)
+            return;
+
+        for(int j = y; j <= y + height; j++)
         {
-            SetPixel(j, i, red);
+            if (j > VGA_HEIGHT)
+                continue;
+            SetPixel(i, j, color);
         }
     }
 }
 
-void draw_playing_field()
+void draw_bar(unsigned int y)
 {
+    if (y > height - 45) {
+        y = height - 45; // 240 - 45 = 195
+    }
+    // Draw three regions: red (top), blue (middle), red (bottom)
+    draw_block(0, y, 7, 15, red);         // Top: y to y+14, red
+    draw_block(0, y + 15, 7, 15, blue);  // Middle: y+15 to y+29, blue
+    draw_block(0, y + 30, 7, 15, red);   // Bottom: y+30 to y+44, red
+}
+
+
+void draw_ball()
+{
+    int ball_half = 3; // 7x7 diamond
+    for (int dy = -ball_half; dy <= ball_half; dy++) 
+    {
+        for (int dx = -ball_half; dx <= ball_half; dx++) 
+        {
+            if (abs(dx) + abs(dy) <= ball_half) 
+            {
+                int px = ball.pos_x + dx;
+                int py = ball.pos_y + dy;
+                if (px >= 0 && px < VGA_WIDTH && py >= 0 && py < VGA_HEIGHT) 
+                {
+                    SetPixel(px, py, ball.color);
+                }
+            }
+        }
+    }
+}
+
+void draw_playing_field() 
+{
+    int ctr = 0; // counter to keep the colors changing
+    for (unsigned int row = 0; row < NROWS; row++) 
+    {
+        for (unsigned int col = 0; col < NCOLS; col++) 
+        {
+            if (tiles[row][col] != 0) 
+            {
+                unsigned int x = VGA_WIDTH - NCOLS * TILE_SIZE + col * TILE_SIZE;
+                unsigned int y = row * TILE_SIZE;
+                unsigned int color = (ctr % 3 == 0) ? red : (ctr % 3 == 1) ? green : blue;
+                draw_block(x, y, TILE_SIZE, TILE_SIZE, color);
+                ctr++;
+            }
+        }
+    }
 }
 
 void update_game_state()
@@ -156,7 +222,7 @@ void write(char *str)
 
 void play()
 {
-    ClearScreen();
+    //ClearScreen();
     // HINT: This is the main game loop
     while (1)
     {
@@ -189,7 +255,7 @@ void play()
 void reset()
 {
     // Hint: This is draining the UART buffer
-    int remaining = 0;
+    /*int remaining = 0;
     do
     {
         unsigned long long out = ReadUart();
@@ -199,9 +265,27 @@ void reset()
             return;
         }
         remaining = (out & 0xFF0000) >> 4;
-    } while (remaining > 0);
+    } while (remaining > 0);*/
 
-    // TODO: You might want to reset other state in here
+
+    ball.pos_x = 20;    // Starting x
+    ball.pos_y = 120;   // Starting y (middle)
+    ball.vx = 1;        // Move right
+    ball.vy = 0;        // No vertical movement
+    ball.color = black;
+
+    bar.pos_y = 98; // approx middle 120 - (15 * 3/2)
+    bar.vy = 0;
+
+    for (unsigned int row = 0; row < NROWS; row++) 
+    {
+        for (unsigned int col = 0; col < NCOLS; col++) 
+        {
+            tiles[row][col] = 1; // All blocks active
+        }
+    }
+
+
 }
 
 void wait_for_start()
@@ -211,13 +295,17 @@ void wait_for_start()
 
 int main(int argc, char *argv[])
 {
-    draw_ball();
+    reset();
     ClearScreen();
+    draw_ball();
+    draw_bar(bar.pos_y);
+    draw_playing_field();
+
 
     
 
     // HINT: This loop allows the user to restart the game after loosing/winning the previous game
-    while (1)
+    /*while (1)
     {
         wait_for_start();
         play();
@@ -226,7 +314,7 @@ int main(int argc, char *argv[])
         {
             break;
         }
-    }
+    }*/
     return 0;
 }
 
